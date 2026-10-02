@@ -158,7 +158,7 @@ class TestPlugin(unittest.TestCase):
         # a negative age is outside the default ranges 0..600 and 0..1800: the writer's clock is wrong
         self.server.scenario = {"body": lambda: table(-120)}
         self.expect(2, r"^INFLUXDB DATA AGE CRITICAL - newest entry is 2m in the future .* \| age=-1[12][0-9](\.[0-9])?s;600;1800$")
-        # ~: only alerts on stale data
+        # ~: only alerts on stale data; subprocess passes it without a shell, so no tilde expansion
         self.expect(0, r"^INFLUXDB DATA AGE OK - newest entry is 2m in the future", "-w", "~:10m", "-c", "~:30m")
 
     def test_no_time_column(self):
@@ -242,6 +242,11 @@ class TestPlugin(unittest.TestCase):
         self.expect(3, r"^INFLUXDB DATA AGE UNKNOWN - invalid threshold 'soon'$", "-w", "soon")
         self.expect(3, r"^INFLUXDB DATA AGE UNKNOWN - invalid threshold '2h:1h': start is above end$", "-c", "2h:1h")
         self.expect(3, r"^INFLUXDB DATA AGE UNKNOWN - -T must be above 0$", "-T", "0")
+
+    def test_expanded_tilde_gets_a_hint(self):
+        # what bash passes for an unquoted -w ~:10m
+        self.expect(3, r"^INFLUXDB DATA AGE UNKNOWN - invalid threshold '/home/nagios:10m' \(did the shell expand an "
+                       r"unquoted ~\? Quote the range: '~:\.\.\.'\)$", "-w", "/home/nagios:10m")
 
     def test_version(self):
         result = self.run_plugin("--version", defaults=False)

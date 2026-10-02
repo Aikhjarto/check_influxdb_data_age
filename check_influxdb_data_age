@@ -88,7 +88,11 @@ class Range:
             start = float("-inf") if low in ("~", "") else parse_number(low)
             end = float("inf") if high == "" else parse_number(high)
         except ValueError:
-            raise PluginError(UNKNOWN, "invalid threshold %r" % raw)
+            hint = ""
+            if raw.startswith("/") and ":" in raw:
+                # bash turns an unquoted ~:10m into /home/user:10m
+                hint = " (did the shell expand an unquoted ~? Quote the range: '~:...')"
+            raise PluginError(UNKNOWN, "invalid threshold %r%s" % (raw, hint))
         if start > end:
             raise PluginError(UNKNOWN, "invalid threshold %r: start is above end" % raw)
         return cls(start, end, inside)
@@ -285,7 +289,7 @@ def build_parser():
                     "influx-api/). The age is that of the newest _time over all tables and rows of the answer.",
         epilog="Thresholds take the monitoring plugins range format, in seconds; a unit s, m, h or d may "
                "follow each number, so the defaults -w 10m -c 30m alert when the newest entry is older than "
-               "10 and 30 minutes.")
+               "10 and 30 minutes. Quote a range that contains ~, as shells expand it: -w '~:10m'.")
     parser.add_argument("-V", "--version", action="version", version="check_influxdb_data_age %s" % VERSION)
     parser.add_argument("-H", "--host", default="localhost", help="InfluxDB host (default: localhost)")
     parser.add_argument("-p", "--port", type=int, default=DEFAULT_PORT,

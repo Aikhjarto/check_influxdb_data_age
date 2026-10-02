@@ -50,7 +50,11 @@ minutes.
 
 An entry with a timestamp in the future, which points to a wrong clock of the
 writer, has a negative age and is outside these ranges as well. To alert on
-old data only, use `-w ~:10m -c ~:30m`.
+old data only, use `-w '~:10m' -c '~:30m'`.
+
+Quote a range that contains `~`: bash expands an unquoted `~:10m` to your
+home directory followed by `:10m`, and Nagios and Naemon run a command line
+with a `~` through the shell. Icinga 2 starts plugins without a shell.
 
 ### Queries
 
