@@ -29,6 +29,7 @@ INFLUXDB DATA AGE OK - newest entry is 1m 40s old (2026-10-02 07:10:45 UTC) | ag
 | `--query` | Flux query; its answer needs a `_time` column (required) |
 | `-w`, `-c` | Ranges for the age of the newest entry (default: `10m` and `30m`) |
 | `--empty-state` | State if the query returns no data (default: critical) |
+| `--allow-timestamps-in-future` | Accept entries in the future, optionally only up to a duration |
 | `-T`, `--timeout` | Timeout in seconds (default: 10) |
 | `-v`, `--verbose` | Print the request, without the token, and the answer to stderr |
 | `-V`, `--version` | Show the version |
@@ -48,13 +49,14 @@ in seconds, and a unit `s`, `m`, `h` or `d` may follow each number: the
 defaults `-w 10m -c 30m` alert when the newest entry is older than 10 and 30
 minutes.
 
-An entry with a timestamp in the future, which points to a wrong clock of the
-writer, has a negative age and is outside these ranges as well. To alert on
-old data only, use `-w '~:10m' -c '~:30m'`.
+### Timestamps in the future
 
-Quote a range that contains `~`: bash expands an unquoted `~:10m` to your
-home directory followed by `:10m`, and Nagios and Naemon run a command line
-with a `~` through the shell. Icinga 2 starts plugins without a shell.
+A newest entry with a timestamp in the future means that the clock of the
+writer, or of the host running the check, is off. It is reported as WARNING,
+unless `--allow-timestamps-in-future` is given. With a duration, e.g.
+`--allow-timestamps-in-future 30s`, only entries up to that far in the
+future are accepted, which allows for small clock offsets. An accepted entry
+counts as current: `-w` and `-c` apply to old data only.
 
 ### Queries
 
@@ -69,6 +71,7 @@ whose `range()` contains no data returns nothing, which is reported with
   the ranges, outside `-w`, or outside `-c`
 - **CRITICAL**: InfluxDB cannot be reached, does not answer within `-T`, or
   answers with a server error
+- **WARNING**: the newest entry has a timestamp in the future, see above
 - **UNKNOWN**: InfluxDB rejects the token or the query, the answer has no
   `_time` column or cannot be read, or the command line is wrong
 

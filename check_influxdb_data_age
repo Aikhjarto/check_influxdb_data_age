@@ -259,18 +259,39 @@ def check(args, text, now):
         return STATE_BY_NAME[args.empty_state], "the query returned no data", []
 
     age = round((now - newest).total_seconds(), 1)
+    perf = [perfdata("age", age, "s", args.warning, args.critical)]
+    when = newest.astimezone(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    if age < 0:
+        # a timestamp in the future: the clock of the writer or of this host is off
+        message = "newest entry is %s in the future (%s)" % (format_duration(-age), when)
+        allowed = args.allow_timestamps_in_future
+        if allowed is None:
+            return WARNING, message + ", see --allow-timestamps-in-future", perf
+        if -age > allowed:
+            return WARNING, message + ", more than the allowed %s" % format_duration(allowed), perf
+        # the data is current; the thresholds apply to old data only
+        age = 0
+    else:
+        message = "newest entry is %s old (%s)" % (format_duration(age), when)
+
     if args.critical and args.critical.breached(age):
         state = CRITICAL
     elif args.warning and args.warning.breached(age):
         state = WARNING
     else:
         state = OK
-    when = newest.astimezone(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    if age < 0:
-        message = "newest entry is %s in the future (%s)" % (format_duration(-age), when)
-    else:
-        message = "newest entry is %s old (%s)" % (format_duration(age), when)
-    return state, message, [perfdata("age", age, "s", args.warning, args.critical)]
+    return state, message, perf
+
+
+def duration_type(text):
+    """A non-negative duration in seconds, with an optional unit s, m, h or d."""
+    try:
+        value = parse_number(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError("invalid duration %r" % text)
+    if value < 0:
+        raise argparse.ArgumentTypeError("the duration must not be negative")
+    return value
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -289,7 +310,7 @@ def build_parser():
                     "influx-api/). The age is that of the newest _time over all tables and rows of the answer.",
         epilog="Thresholds take the monitoring plugins range format, in seconds; a unit s, m, h or d may "
                "follow each number, so the defaults -w 10m -c 30m alert when the newest entry is older than "
-               "10 and 30 minutes. Quote a range that contains ~, as shells expand it: -w '~:10m'.")
+               "10 and 30 minutes.")
     parser.add_argument("-V", "--version", action="version", version="check_influxdb_data_age %s" % VERSION)
     parser.add_argument("-H", "--host", default="localhost", help="InfluxDB host (default: localhost)")
     parser.add_argument("-p", "--port", type=int, default=DEFAULT_PORT,
@@ -313,6 +334,11 @@ def build_parser():
                         help="warning range for the age of the newest entry (default: %s)" % DEFAULT_WARNING)
     parser.add_argument("-c", "--critical", default=DEFAULT_CRITICAL,
                         help="critical range for the age of the newest entry (default: %s)" % DEFAULT_CRITICAL)
+    parser.add_argument("--allow-timestamps-in-future", nargs="?", type=duration_type, const=float("inf"),
+                        metavar="DURATION",
+                        help="do not report entries with a timestamp in the future, which are WARNING otherwise; "
+                             "with DURATION, e.g. 30s, only up to that far in the future, to allow for clock "
+                             "offsets")
     parser.add_argument("--empty-state", choices=("ok", "warning", "critical", "unknown"), default="critical",
                         help="state if the query returns no data, e.g. none within its range() (default: critical)")
     parser.add_argument("-v", "--verbose", action="store_true",

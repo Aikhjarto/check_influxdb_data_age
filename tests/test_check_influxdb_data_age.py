@@ -154,12 +154,31 @@ class TestPlugin(unittest.TestCase):
             # whole seconds lose the fraction, so the age may be just above 80s
             self.expect(0, r"newest entry is 1m 2[01]s old")
 
-    def test_future_timestamp(self):
-        # a negative age is outside the default ranges 0..600 and 0..1800: the writer's clock is wrong
+    def test_future_timestamp_is_reported(self):
+        # the clock of the writer is off: WARNING by default
         self.server.scenario = {"body": lambda: table(-120)}
-        self.expect(2, r"^INFLUXDB DATA AGE CRITICAL - newest entry is 2m in the future .* \| age=-1[12][0-9](\.[0-9])?s;600;1800$")
-        # ~: only alerts on stale data; subprocess passes it without a shell, so no tilde expansion
-        self.expect(0, r"^INFLUXDB DATA AGE OK - newest entry is 2m in the future", "-w", "~:10m", "-c", "~:30m")
+        self.expect(1, r"^INFLUXDB DATA AGE WARNING - newest entry is 2m in the future \(.* UTC\), see "
+                       r"--allow-timestamps-in-future \| age=-1[12][0-9](\.[0-9])?s;600;1800$")
+
+    def test_future_timestamp_allowed(self):
+        self.server.scenario = {"body": lambda: table(-120)}
+        self.expect(0, r"^INFLUXDB DATA AGE OK - newest entry is 2m in the future \(.* UTC\) \| age=-1",
+                    "--allow-timestamps-in-future")
+        self.expect(0, r"^INFLUXDB DATA AGE OK - newest entry is 2m in the future", "--allow-timestamps-in-future",
+                    "5m")
+        # the option takes no value when another option follows it
+        self.expect(0, r"^INFLUXDB DATA AGE OK - ", "--allow-timestamps-in-future", "-w", "10m")
+
+    def test_future_timestamp_beyond_the_allowed_offset(self):
+        self.server.scenario = {"body": lambda: table(-120)}
+        self.expect(1, r"^INFLUXDB DATA AGE WARNING - newest entry is 2m in the future \(.* UTC\), more than the "
+                       r"allowed 30s \|", "--allow-timestamps-in-future", "30s")
+
+    def test_allowed_future_counts_as_current(self):
+        # thresholds apply to old data only, so a strict -w does not trigger on an allowed future entry
+        self.server.scenario = {"body": lambda: table(-5)}
+        self.expect(0, r"^INFLUXDB DATA AGE OK - newest entry is 5s in the future", "--allow-timestamps-in-future",
+                    "10s", "-w", "1", "-c", "2")
 
     def test_no_time_column(self):
         self.server.scenario = {"body": ",result,table,_value\r\n,_result,0,1\r\n"}
@@ -242,6 +261,10 @@ class TestPlugin(unittest.TestCase):
         self.expect(3, r"^INFLUXDB DATA AGE UNKNOWN - invalid threshold 'soon'$", "-w", "soon")
         self.expect(3, r"^INFLUXDB DATA AGE UNKNOWN - invalid threshold '2h:1h': start is above end$", "-c", "2h:1h")
         self.expect(3, r"^INFLUXDB DATA AGE UNKNOWN - -T must be above 0$", "-T", "0")
+        for value in ("soon", "-5s"):
+            result = self.run_plugin("--allow-timestamps-in-future=" + value)
+            self.assertEqual(3, result.returncode, (value, result))
+            self.assertIn("argument --allow-timestamps-in-future: ", result.stderr)
 
     def test_expanded_tilde_gets_a_hint(self):
         # what bash passes for an unquoted -w ~:10m
