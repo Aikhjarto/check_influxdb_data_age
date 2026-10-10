@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -23,13 +24,20 @@ def complete(*words, command="check_influxdb_data_age", cwd=None):
 
 
 def help_options():
-    """The option strings --help lists."""
-    text = subprocess.run([PLUGIN, "--help"], capture_output=True, text=True, check=True).stdout
+    """The option strings --help lists.
+
+    Before Python 3.13 argparse repeats the metavar after every option string
+    ("-H HOST, --host HOST"), since then only after the last ("-H, --host HOST").
+    An option line starts with the invocation, followed by the description after
+    two or more spaces or, if the invocation is long, on the next line.
+    """
+    text = subprocess.run([sys.executable, PLUGIN, "--help"],
+                          capture_output=True, text=True, check=True).stdout
     options = set()
     for line in text.split("\n"):
-        match = re.match(r"\s{2}(-[^\s,]+(?:, -[^\s,]+)*)", line)
+        match = re.match(r"  (-\S.*?)(?:\s{2,}|$)", line)
         if match:
-            options.update(match.group(1).split(", "))
+            options.update(re.findall(r"(?:^|, )(-{1,2}[^\s,=\[]+)", match.group(1)))
     return options
 
 

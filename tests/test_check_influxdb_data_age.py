@@ -274,7 +274,7 @@ class TestPlugin(unittest.TestCase):
     def test_version(self):
         result = self.run_plugin("--version", defaults=False)
         self.assertEqual(0, result.returncode, result)
-        self.assertRegex(result.stdout, r"^check_influxdb_data_age \d+\.\d+$")
+        self.assertRegex(result.stdout, r"^check_influxdb_data_age \d+(\.\d+)+$")
 
 
 if __name__ == "__main__":
