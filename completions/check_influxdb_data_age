@@ -1,0 +1,41 @@
+# bash completion for check_influxdb_data_age                -*- shell-script -*-
+
+_check_influxdb_data_age()
+{
+    local cur=${COMP_WORDS[COMP_CWORD]} prev=${COMP_WORDS[COMP_CWORD-1]}
+    # --option=value: bash splits at the =
+    if [[ $cur == = ]]; then
+        cur=
+    elif [[ $prev == = && $COMP_CWORD -ge 2 ]]; then
+        prev=${COMP_WORDS[COMP_CWORD-2]}
+    fi
+    COMPREPLY=()
+
+    case $prev in
+        -H | --host)
+            mapfile -t COMPREPLY < <(compgen -A hostname -- "$cur")
+            return
+            ;;
+        -f | --token-file | --ca-cert)
+            compopt -o filenames 2>/dev/null
+            mapfile -t COMPREPLY < <(compgen -f -- "$cur")
+            return
+            ;;
+        --empty-state)
+            mapfile -t COMPREPLY < <(compgen -W 'ok warning critical unknown' -- "$cur")
+            return
+            ;;
+        -p | --port | -T | --timeout | -t | --token | -o | --org-id | --org | --query | \
+            -w | --warning | -c | --critical)
+            return
+            ;;
+    esac
+
+    # no positional arguments: offer the options
+    mapfile -t COMPREPLY < <(compgen -W '-h --help -V --version -H --host -p --port
+        -S --ssl -ssl --insecure --ca-cert -T --timeout -f --token-file -t --token
+        -o --org-id --org --query -w --warning -c --critical
+        --allow-timestamps-in-future --empty-state -v --verbose' -- "$cur")
+}
+# check_influxdb_data_age.py: its name in the monitoring-plugins collection
+complete -F _check_influxdb_data_age check_influxdb_data_age check_influxdb_data_age.py

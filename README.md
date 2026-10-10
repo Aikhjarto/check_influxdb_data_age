@@ -89,6 +89,16 @@ collection. The options are the same, apart from:
 - `-ssl` still works, `-S`/`--ssl` is the new spelling.
 - The output starts with `INFLUXDB DATA AGE` and uses the full state names.
 
+## Bash completion
+
+`completions/check_influxdb_data_age` completes the options and their values,
+also when the plugin is called by its full path. The packages install it;
+otherwise copy it to bash-completion's directory:
+
+```sh
+install -D -m 0644 completions/check_influxdb_data_age /usr/share/bash-completion/completions/check_influxdb_data_age
+```
+
 ## Tests
 
 ```sh
